@@ -18,11 +18,11 @@ const formatComment = (doc) => {
         comment_id: doc.comment_id,
         comment_content: doc.comment_content,
         is_from_author: doc.is_from_author,
-        doi_articolo: doc.doi_articolo,
-        titolo_articolo: doc.titolo_articolo,
-        autori_articolo: doc.autori_articolo,
-        rivista_articolo: doc.rivista_articolo,
-        url_articolo: doc.url_articolo,
+        doi_article: doc.doi_articolo,
+        title_article: doc.titolo_articolo,
+        authors_article: doc.autori_articolo,
+        journal_article: doc.rivista_articolo,
+        url_article: doc.url_articolo,
         classifications: doc.classifications || []
     };
 };
@@ -43,28 +43,45 @@ const formatComment = (doc) => {
  *       200:
  *         description: Lista di commenti completa
  */
+/**
+ * @swagger
+ * /api/comments/random/{N}:
+ *   get:
+ *     summary: Restituisce N commenti randomici con priorità a quelli meno classificati
+ *     parameters:
+ *       - in: path
+ *         name: N
+ *         schema:
+ *           type: integer
+ *         required: true
+ *         description: Numero di commenti da restituire
+ *     responses:
+ *       200:
+ *         description: Lista di commenti completa
+ */
 router.get("/random/:N", async (req, res) => {
-    try {
-        const N = parseInt(req.params.N) || 5;
+  try {
+    const N = parseInt(req.params.N) || 1;
+    const sampleSize = 50;
 
-        const pipeline = [
-            {
-                $addFields: {
-                    classCount: { $size: { $ifNull: ["$classifications", []] } }
-                }
-            },
-            { $sort: { classCount: 1 } },
-            { $limit: N * 5 },
-            { $sample: { size: N } }
-        ];
+    const rawSample = await Comment.aggregate([
+      { $sample: { size: sampleSize } } 
+    ]);
 
-        const rawComments = await Comment.aggregate(pipeline);
-        res.json(rawComments.map(formatComment));
+    rawSample.sort((a, b) => {
+      const aCount = a.classifications ? a.classifications.length : 0;
+      const bCount = b.classifications ? b.classifications.length : 0;
+      return aCount - bCount;
+    });
 
-    } catch (err) {
-        console.error("Errore in /random:", err);
-        res.status(500).json({ error: err.message });
-    }
+    const selected = rawSample.slice(0, N);
+
+    res.json(selected.map(formatComment));
+
+  } catch (err) {
+    console.error("Errore in /random:", err);
+    res.status(500).json({ error: err.message });
+  }
 });
 
 /**
