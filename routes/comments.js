@@ -6,7 +6,8 @@ const allowedCategories = [
     "figure anomalies",
     "clarification",
     "data validity",
-    "ethical issues"
+    "ethical issues",
+    "external link"
 ];
 
 /**
