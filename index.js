@@ -37,14 +37,7 @@ const swaggerOptions = {
       version: "1.0.0",
       description: "API per classificazione commenti PubPeer",
     },
-    servers: [
-      {
-        // Usa URL locale se in sviluppo, altrimenti URL pubblico di Render
-        url: process.env.NODE_ENV === "production"
-          ? "https://tuo-servizio.onrender.com" // sostituisci con il tuo URL Render
-          : `http://localhost:${port}`,
-      },
-    ],
+    servers: [{ url: `http://localhost:${port}` }],
     components: {
       securitySchemes: {
         ApiKeyAuth: {
@@ -58,7 +51,6 @@ const swaggerOptions = {
   },
   apis: ["./routes/*.js"],
 };
-
 
 const swaggerDocs = swaggerJsDoc(swaggerOptions);
 app.use("/api-docs", swaggerUi.serve, swaggerUi.setup(swaggerDocs));
