@@ -37,7 +37,13 @@ const swaggerOptions = {
       version: "1.0.0",
       description: "API per classificazione commenti PubPeer",
     },
-    servers: [{ url: `http://localhost:${port}` }],
+    servers: [
+      {
+        url: process.env.NODE_ENV === "production"
+          ? "https://pubpeerclassifierapi.onrender.com/" 
+          : `http://localhost:${port}`,        
+      },
+    ],
     components: {
       securitySchemes: {
         ApiKeyAuth: {
@@ -51,6 +57,7 @@ const swaggerOptions = {
   },
   apis: ["./routes/*.js"],
 };
+
 
 const swaggerDocs = swaggerJsDoc(swaggerOptions);
 app.use("/api-docs", swaggerUi.serve, swaggerUi.setup(swaggerDocs));
