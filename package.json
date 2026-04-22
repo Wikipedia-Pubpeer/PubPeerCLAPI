@@ -20,5 +20,8 @@
     "mongoose": "^8.23.0",
     "swagger-jsdoc": "^6.2.8",
     "swagger-ui-express": "^5.0.1"
+  },
+  "devDependencies": {
+    "react-scripts": "^5.0.1"
   }
 }
