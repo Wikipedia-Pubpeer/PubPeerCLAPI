@@ -1,8 +1,9 @@
 const express = require("express");
 const router = express.Router();
 const Comment = require("../models/comment");
+const Category = require("../models/category");
 
-const allowedCategories = [
+const defaultCategories = [
     "methodological concerns",
     "figure anomalies",
     "clarification",
@@ -29,20 +30,35 @@ const formatComment = (doc) => {
 
 /**
  * @swagger
- * /api/comments/random/{N}:
+ * /api/comments/categories:
  *   get:
- *     summary: Restituisce N commenti randomici con priorità a quelli meno classificati
- *     parameters:
- *       - in: path
- *         name: N
- *         schema:
- *           type: integer
- *         required: true
- *         description: Numero di commenti da restituire
+ *     summary: Restituisce l'elenco completo di tutte le categorie (predefinite + create dagli utenti)
  *     responses:
  *       200:
- *         description: Lista di commenti completa
+ *         description: Lista delle categorie e dettagli sui creatori
  */
+router.get("/categories", async (req, res) => {
+    try {
+        // Recupera tutte le categorie personalizzate dal DB
+        const customCategories = await Category.find({}, "name createdBy createdAt");
+
+        const customNames = customCategories.map((c) => c.name);
+
+        // Unisce le categorie di default e quelle create dagli utenti (senza duplicati)
+        const allCategoryNames = Array.from(
+            new Set([...defaultCategories, ...customNames])
+        );
+
+        res.json({
+            categories: allCategoryNames,
+            details: customCategories
+        });
+    } catch (err) {
+        console.error("Errore nel recupero delle categorie:", err);
+        res.status(500).json({ error: err.message });
+    }
+});
+
 /**
  * @swagger
  * /api/comments/random/{N}:
@@ -60,35 +76,35 @@ const formatComment = (doc) => {
  *         description: Lista di commenti completa
  */
 router.get("/random/:N", async (req, res) => {
-  try {
-    const N = parseInt(req.params.N) || 1;
-    const sampleSize = 50;
+    try {
+        const N = parseInt(req.params.N) || 1;
+        const sampleSize = 50;
 
-    const rawSample = await Comment.aggregate([
-      { $sample: { size: sampleSize } } 
-    ]);
+        const rawSample = await Comment.aggregate([
+            { $sample: { size: sampleSize } }
+        ]);
 
-    rawSample.sort((a, b) => {
-      const aCount = a.classifications ? a.classifications.length : 0;
-      const bCount = b.classifications ? b.classifications.length : 0;
-      return aCount - bCount;
-    });
+        rawSample.sort((a, b) => {
+            const aCount = a.classifications ? a.classifications.length : 0;
+            const bCount = b.classifications ? b.classifications.length : 0;
+            return aCount - bCount;
+        });
 
-    const selected = rawSample.slice(0, N);
+        const selected = rawSample.slice(0, N);
 
-    res.json(selected.map(formatComment));
+        res.json(selected.map(formatComment));
 
-  } catch (err) {
-    console.error("Errore in /random:", err);
-    res.status(500).json({ error: err.message });
-  }
+    } catch (err) {
+        console.error("Errore in /random:", err);
+        res.status(500).json({ error: err.message });
+    }
 });
 
 /**
  * @swagger
  * /api/comments/classify/{id}:
  *   post:
- *     summary: Salva una classificazione per un commento
+ *     summary: Salva una classificazione per un commento e registra l'autore se la categoria è nuova
  *     parameters:
  *       - in: path
  *         name: id
@@ -120,20 +136,30 @@ router.post("/classify/:id", async (req, res) => {
             return res.status(400).json({ error: "I campi 'category' e 'user' sono obbligatori" });
         }
 
-        if (!allowedCategories.includes(category)) {
-            return res.status(400).json({
-                error: `Categoria non valida. Usa una di: ${allowedCategories.join(", ")}`
-            });
+        const cleanCategory = category.trim().toLowerCase();
+
+        if (cleanCategory.length === 0) {
+            return res.status(400).json({ error: "La categoria non può essere vuota" });
         }
 
+        // 1. Salva la classificazione sul commento
         const updatedDoc = await Comment.findOneAndUpdate(
             { comment_id: commentId },
-            { $push: { classifications: { category, user } } },
+            { $push: { classifications: { category: cleanCategory, user } } },
             { new: true }
         );
 
         if (!updatedDoc) {
             return res.status(404).json({ error: "Commento non trovato" });
+        }
+
+        // 2. Se non fa parte di quelle predefinite, salva/registra il creatore originale nel DB
+        if (!defaultCategories.includes(cleanCategory)) {
+            await Category.updateOne(
+                { name: cleanCategory },
+                { $setOnInsert: { name: cleanCategory, createdBy: user, createdAt: new Date() } },
+                { upsert: true }
+            );
         }
 
         res.json(formatComment(updatedDoc));
